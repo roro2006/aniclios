@@ -13,10 +13,15 @@ jobs:
           npx cap sync
       - name: Build with Xcode
         run: |
-          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -sdk iphoneos -configuration Debug -archivePath $PWD/build/App.xcarchive archive
-          xcodebuild -exportArchive -archivePath $PWD/build/App.xcarchive -exportOptionsPlist ios/App/App/ExportOptions.plist -exportPath $PWD/build/ipa
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -sdk iphoneos -configuration Debug -archivePath $PWD/build/App.xcarchive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" archive
+          mkdir -p build/ipa
+          cp -r build/App.xcarchive/Products/Applications/App.app build/ipa/
+          cd build/ipa
+          mkdir Payload
+          mv App.app Payload/
+          zip -r AniCLI.ipa Payload
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: AniCLI-IPA
-          path: build/ipa/*.ipa
+          path: build/ipa/AniCLI.ipa
