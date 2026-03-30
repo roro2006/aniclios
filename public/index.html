@@ -177,17 +177,21 @@
     <h1>AniCLI Web</h1>
 
     <div class="search-container">
-        <input type="text" id="search-input" placeholder="Search anime...">
+        <select id="type-select" style="padding: 10px; border-radius: 8px; border: 1px solid #333; background: #252525; color: white;">
+            <option value="anime">Anime</option>
+            <option value="manga">Manga</option>
+        </select>
+        <input type="text" id="search-input" placeholder="Search...">
         <button id="search-btn">Search</button>
     </div>
 
     <div id="history-container" style="width: 100%; max-width: 1000px; margin-bottom: 40px; display: none;">
-        <h2 style="color: var(--primary); border-bottom: 1px solid #333; padding-bottom: 10px;">Continue Watching</h2>
+        <h2 style="color: var(--primary); border-bottom: 1px solid #333; padding-bottom: 10px;">Continue Watching / Reading</h2>
         <div id="history-list" class="results"></div>
     </div>
 
     <div id="watchlist-container" style="width: 100%; max-width: 1000px; margin-bottom: 40px; display: none;">
-        <h2 style="color: var(--primary); border-bottom: 1px solid #333; padding-bottom: 10px;">Watchlist</h2>
+        <h2 style="color: var(--primary); border-bottom: 1px solid #333; padding-bottom: 10px;">Watchlist / Readlist</h2>
         <div id="watchlist-list" class="results"></div>
     </div>
 
@@ -197,7 +201,12 @@
     <div id="player-overlay" class="player-container">
         <span class="close-btn" id="close-player">&times;</span>
         <h2 id="player-title"></h2>
-        <video id="video-player" controls></video>
+        <div id="anime-view" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
+            <video id="video-player" controls></video>
+        </div>
+        <div id="manga-view" style="width: 100%; display: none; flex-direction: column; align-items: center; overflow-y: auto; max-height: 80vh;">
+            <div id="manga-pages" style="width: 100%; max-width: 800px; display: flex; flex-direction: column; gap: 10px;"></div>
+        </div>
         <div id="episodes-container" class="episodes-list"></div>
     </div>
 

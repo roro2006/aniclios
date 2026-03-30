@@ -1,5 +1,6 @@
 const searchInput = document.getElementById('search-input');
 const searchBtn = document.getElementById('search-btn');
+const typeSelect = document.getElementById('type-select');
 const resultsDiv = document.getElementById('results');
 const loadingDiv = document.getElementById('loading');
 const playerOverlay = document.getElementById('player-overlay');
@@ -11,11 +12,17 @@ const historyContainer = document.getElementById('history-container');
 const historyList = document.getElementById('history-list');
 const watchlistContainer = document.getElementById('watchlist-container');
 const watchlistList = document.getElementById('watchlist-list');
+const animeView = document.getElementById('anime-view');
+const mangaView = document.getElementById('manga-view');
+const mangaPages = document.getElementById('manga-pages');
 
-let currentAnimeId = '';
-let currentAnimeName = '';
+let currentId = '';
+let currentName = '';
 let currentThumbnail = '';
+let currentType = 'anime';
 let hls = null;
+
+const MANGA_THUMB_BASE = 'https://allanime.day/';
 
 // Load History
 function loadHistory() {
@@ -32,21 +39,19 @@ function loadHistory() {
         card.innerHTML = `
             <img src="${item.thumbnail}" alt="${item.name}">
             <h3>${item.name}</h3>
-            <span>Last Watched: Ep ${item.lastEp}</span>
+            <span>Last ${item.type === 'manga' ? 'Read' : 'Watched'}: Ep ${item.lastEp}</span>
+            <span style="font-size: 0.6rem; color: var(--primary); text-transform: uppercase;">${item.type}</span>
         `;
-        card.onclick = () => showPlayer(item.id, item.name, item.lastEp);
+        card.onclick = () => showPlayer(item.id, item.name, item.type, item.lastEp, item.thumbnail);
         historyList.appendChild(card);
     });
 }
 
-function saveToHistory(id, name, thumbnail, lastEp) {
+function saveToHistory(id, name, type, thumbnail, lastEp) {
     let history = JSON.parse(localStorage.getItem('anicli-history') || '[]');
-    // Remove existing entry
     history = history.filter(item => item.id !== id);
-    // Add to front
-    history.unshift({ id, name, thumbnail, lastEp });
-    // Keep last 10
-    history = history.slice(0, 10);
+    history.unshift({ id, name, type, thumbnail, lastEp });
+    history = history.slice(0, 15);
     localStorage.setItem('anicli-history', JSON.stringify(history));
     loadHistory();
 }
@@ -66,67 +71,73 @@ function loadWatchlist() {
         card.innerHTML = `
             <img src="${item.thumbnail}" alt="${item.name}">
             <h3>${item.name}</h3>
-            <span>Added to Watchlist</span>
-            <button class="watchlist-btn active" onclick="event.stopPropagation(); toggleWatchlist('${item.id}', '${item.name}', '${item.thumbnail}')">Remove</button>
+            <span style="font-size: 0.6rem; color: var(--primary); text-transform: uppercase;">${item.type}</span>
+            <button class="watchlist-btn active" onclick="event.stopPropagation(); toggleWatchlist('${item.id}', '${item.name}', '${item.type}', '${item.thumbnail}')">Remove</button>
         `;
-        card.onclick = () => showPlayer(item.id, item.name, null, item.thumbnail);
+        card.onclick = () => showPlayer(item.id, item.name, item.type, null, item.thumbnail);
         watchlistList.appendChild(card);
     });
 }
 
-function toggleWatchlist(id, name, thumbnail) {
+function toggleWatchlist(id, name, type, thumbnail) {
     let watchlist = JSON.parse(localStorage.getItem('anicli-watchlist') || '[]');
     const exists = watchlist.some(item => item.id === id);
     
     if (exists) {
         watchlist = watchlist.filter(item => item.id !== id);
     } else {
-        watchlist.unshift({ id, name, thumbnail });
+        watchlist.unshift({ id, name, type, thumbnail });
     }
     
     localStorage.setItem('anicli-watchlist', JSON.stringify(watchlist));
     loadWatchlist();
-    // Update button in search if visible
-    const searchBtn = document.querySelector(`.watchlist-btn[data-id="${id}"]`);
-    if (searchBtn) {
-        searchBtn.innerText = exists ? 'Add to Watchlist' : 'In Watchlist';
-        searchBtn.classList.toggle('active', !exists);
+    const btn = document.querySelector(`.watchlist-btn[data-id="${id}"]`);
+    if (btn) {
+        btn.innerText = exists ? 'Add to List' : 'In List';
+        btn.classList.toggle('active', !exists);
     }
 }
 
-async function searchAnime() {
+async function search() {
     const query = searchInput.value.trim();
+    const type = typeSelect.value;
     if (!query) return;
 
     loadingDiv.style.display = 'block';
     resultsDiv.innerHTML = '';
 
     try {
-        const resp = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
+        const resp = await fetch(`/api/search?query=${encodeURIComponent(query)}&type=${type}`);
         const results = await resp.json();
         
         loadingDiv.style.display = 'none';
-        
         if (results.length === 0) {
             resultsDiv.innerHTML = '<p>No results found.</p>';
             return;
         }
 
         const watchlist = JSON.parse(localStorage.getItem('anicli-watchlist') || '[]');
-        results.forEach(anime => {
+        results.forEach(item => {
             const card = document.createElement('div');
             card.className = 'anime-card';
-            const thumbnail = anime.thumbnail || 'https://via.placeholder.com/200x250?text=No+Cover';
-            const inWatchlist = watchlist.some(item => item.id === anime._id);
+            let thumbnail = item.thumbnail;
+            if (thumbnail && !thumbnail.startsWith('http')) {
+                thumbnail = MANGA_THUMB_BASE + thumbnail;
+            }
+            if (!thumbnail) thumbnail = 'https://via.placeholder.com/200x250?text=No+Cover';
+            
+            const inList = watchlist.some(w => w.id === item._id);
+            const count = type === 'manga' ? item.availableChapters.sub : item.availableEpisodes.sub;
+            
             card.innerHTML = `
-                <img src="${thumbnail}" alt="${anime.name}" onerror="this.src='https://via.placeholder.com/200x250?text=No+Cover'">
-                <h3>${anime.name}</h3>
-                <span>Episodes: ${anime.availableEpisodes.sub || 0}</span>
-                <button class="watchlist-btn ${inWatchlist ? 'active' : ''}" data-id="${anime._id}" onclick="event.stopPropagation(); toggleWatchlist('${anime._id}', '${anime.name.replace(/'/g, "\\'")}', '${thumbnail}')">
-                    ${inWatchlist ? 'In Watchlist' : 'Add to Watchlist'}
+                <img src="${thumbnail}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/200x250?text=No+Cover'">
+                <h3>${item.name}</h3>
+                <span>${type === 'manga' ? 'Chapters' : 'Episodes'}: ${count || 0}</span>
+                <button class="watchlist-btn ${inList ? 'active' : ''}" data-id="${item._id}" onclick="event.stopPropagation(); toggleWatchlist('${item._id}', '${item.name.replace(/'/g, "\\'")}', '${type}', '${thumbnail}')">
+                    ${inList ? 'In List' : 'Add to List'}
                 </button>
             `;
-            card.onclick = () => showPlayer(anime._id, anime.name, null, thumbnail);
+            card.onclick = () => showPlayer(item._id, item.name, type, null, thumbnail);
             resultsDiv.appendChild(card);
         });
     } catch (err) {
@@ -134,39 +145,48 @@ async function searchAnime() {
     }
 }
 
-async function showPlayer(id, name, lastEp = null, thumbnail = null) {
-    currentAnimeId = id;
-    currentAnimeName = name;
+async function showPlayer(id, name, type, lastEp = null, thumbnail = null) {
+    currentId = id;
+    currentName = name;
+    currentType = type;
     if (thumbnail) currentThumbnail = thumbnail;
-    else {
-        const history = JSON.parse(localStorage.getItem('anicli-history') || '[]');
-        const histItem = history.find(item => item.id === id);
-        if (histItem) currentThumbnail = histItem.thumbnail;
-    }
     
     playerTitle.innerText = name;
     playerOverlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
     
-    episodesContainer.innerHTML = '<p class="loading">Loading episodes...</p>';
+    if (type === 'manga') {
+        animeView.style.display = 'none';
+        mangaView.style.display = 'flex';
+        videoPlayer.pause();
+    } else {
+        animeView.style.display = 'flex';
+        mangaView.style.display = 'none';
+    }
+    
+    episodesContainer.innerHTML = '<p class="loading">Loading...</p>';
     
     try {
-        const resp = await fetch(`/api/episodes?id=${id}`);
+        const resp = await fetch(`/api/episodes?id=${id}&type=${type}`);
         const episodes = await resp.json();
         
         episodesContainer.innerHTML = '';
         episodes.sort((a,b) => parseFloat(a) - parseFloat(b)).forEach(ep => {
             const btn = document.createElement('button');
             btn.className = 'ep-btn';
-            btn.innerText = `Ep ${ep}`;
-            btn.onclick = () => playEpisode(ep, btn);
+            btn.innerText = (type === 'manga' ? 'Ch ' : 'Ep ') + ep;
+            btn.onclick = () => {
+                if (type === 'manga') playChapter(ep, btn);
+                else playEpisode(ep, btn);
+            };
             episodesContainer.appendChild(btn);
         });
 
         if (episodes.length > 0) {
             const targetEp = lastEp || episodes[0];
-            const targetBtn = Array.from(episodesContainer.children).find(b => b.innerText === `Ep ${targetEp}`) || episodesContainer.firstChild;
-            playEpisode(targetEp, targetBtn);
+            const targetBtn = Array.from(episodesContainer.children).find(b => b.innerText.includes(targetEp)) || episodesContainer.firstChild;
+            if (type === 'manga') playChapter(targetEp, targetBtn);
+            else playEpisode(targetEp, targetBtn);
         }
     } catch (err) {
         episodesContainer.innerText = `Error: ${err.message}`;
@@ -176,52 +196,60 @@ async function showPlayer(id, name, lastEp = null, thumbnail = null) {
 async function playEpisode(ep, btn) {
     document.querySelectorAll('.ep-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    saveToHistory(currentAnimeId, currentAnimeName, currentThumbnail, ep);
+    saveToHistory(currentId, currentName, 'anime', currentThumbnail, ep);
     
     try {
-        const resp = await fetch(`/api/links?id=${currentAnimeId}&ep=${ep}`);
+        const resp = await fetch(`/api/links?id=${currentId}&ep=${ep}`);
         const links = await resp.json();
-        
-        if (links.length === 0) {
-            alert('No links found for this episode.');
-            return;
-        }
+        if (links.length === 0) return alert('No links found.');
 
         const bestLink = links.find(l => l.quality === '1080p') || links[0];
         const streamUrl = bestLink.url;
 
-        if (hls) {
-            hls.destroy();
-            hls = null;
-        }
-
+        if (hls) hls.destroy();
         if (bestLink.isHLS && Hls.isSupported()) {
             hls = new Hls();
             hls.loadSource(streamUrl);
             hls.attachMedia(videoPlayer);
-            hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                videoPlayer.play();
-            });
+            hls.on(Hls.Events.MANIFEST_PARSED, () => videoPlayer.play());
         } else {
             videoPlayer.src = streamUrl;
             videoPlayer.play();
         }
-    } catch (err) {
-        alert(`Failed to play episode: ${err.message}`);
-    }
+    } catch (err) { alert(`Error: ${err.message}`); }
 }
 
-searchBtn.onclick = searchAnime;
-searchInput.onkeypress = (e) => { if (e.key === 'Enter') searchAnime(); };
+async function playChapter(ch, btn) {
+    document.querySelectorAll('.ep-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    saveToHistory(currentId, currentName, 'manga', currentThumbnail, ch);
+    
+    mangaPages.innerHTML = '<p class="loading">Loading pages...</p>';
+    mangaView.scrollTop = 0;
+
+    try {
+        const resp = await fetch(`/api/manga-pages?id=${currentId}&chapter=${ch}`);
+        const pages = await resp.json();
+        
+        mangaPages.innerHTML = '';
+        pages.forEach(url => {
+            const img = document.createElement('img');
+            img.src = url;
+            img.style.width = '100%';
+            img.loading = 'lazy';
+            mangaPages.appendChild(img);
+        });
+    } catch (err) { mangaPages.innerText = `Error: ${err.message}`; }
+}
+
+searchBtn.onclick = search;
+searchInput.onkeypress = (e) => { if (e.key === 'Enter') search(); };
 
 closePlayer.onclick = () => {
     playerOverlay.style.display = 'none';
     document.body.style.overflow = 'auto';
     videoPlayer.pause();
-    if (hls) {
-        hls.destroy();
-        hls = null;
-    }
+    if (hls) { hls.destroy(); hls = null; }
 };
 
 loadHistory();

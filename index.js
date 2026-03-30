@@ -30,44 +30,74 @@ function decodeProviderId(hex) {
 }
 
 app.get('/api/search', async (req, res) => {
-    const { query } = req.query;
-    const search_gql = 'query( $search: SearchInput $limit: Int $page: Int $translationType: VaildTranslationTypeEnumType $countryOrigin: VaildCountryOriginEnumType ) { shows( search: $search limit: $limit page: $page translationType: $translationType countryOrigin: $countryOrigin ) { edges { _id name thumbnail availableEpisodes __typename } }}';
-    
-    try {
-        const response = await axios.get(`${ALLANIME_API}/api`, {
-            params: {
-                variables: JSON.stringify({
-                    search: { allowAdult: false, allowUnknown: false, query },
-                    limit: 40,
-                    page: 1,
-                    translationType: 'sub',
-                    countryOrigin: 'ALL'
-                }),
-                query: search_gql
-            },
-            headers: { 'Referer': ALLANIME_REFR, 'User-Agent': AGENT }
-        });
-        res.json(response.data.data.shows.edges);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+    const { query, type } = req.query;
+    if (type === 'manga') {
+        const manga_gql = 'query( $search: SearchInput $limit: Int $page: Int $translationType: VaildTranslationTypeMangaEnumType $countryOrigin: VaildCountryOriginEnumType ) { mangas( search: $search limit: $limit page: $page translationType: $translationType countryOrigin: $countryOrigin ) { edges { _id name thumbnail availableChapters __typename } }}';
+        try {
+            const response = await axios.get(`${ALLANIME_API}/api`, {
+                params: {
+                    variables: JSON.stringify({
+                        search: { allowAdult: false, allowUnknown: false, query },
+                        limit: 40, page: 1, translationType: 'sub', countryOrigin: 'ALL'
+                    }),
+                    query: manga_gql
+                },
+                headers: { 'Referer': ALLANIME_REFR, 'User-Agent': AGENT }
+            });
+            res.json(response.data.data.mangas.edges);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    } else {
+        const search_gql = 'query( $search: SearchInput $limit: Int $page: Int $translationType: VaildTranslationTypeEnumType $countryOrigin: VaildCountryOriginEnumType ) { shows( search: $search limit: $limit page: $page translationType: $translationType countryOrigin: $countryOrigin ) { edges { _id name thumbnail availableEpisodes __typename } }}';
+        try {
+            const response = await axios.get(`${ALLANIME_API}/api`, {
+                params: {
+                    variables: JSON.stringify({
+                        search: { allowAdult: false, allowUnknown: false, query },
+                        limit: 40, page: 1, translationType: 'sub', countryOrigin: 'ALL'
+                    }),
+                    query: search_gql
+                },
+                headers: { 'Referer': ALLANIME_REFR, 'User-Agent': AGENT }
+            });
+            res.json(response.data.data.shows.edges);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
     }
 });
 
 app.get('/api/episodes', async (req, res) => {
-    const { id } = req.query;
-    const episodes_list_gql = 'query ($showId: String!) { show( _id: $showId ) { _id availableEpisodesDetail }}';
-    
-    try {
-        const response = await axios.get(`${ALLANIME_API}/api`, {
-            params: {
-                variables: JSON.stringify({ showId: id }),
-                query: episodes_list_gql
-            },
-            headers: { 'Referer': ALLANIME_REFR, 'User-Agent': AGENT }
-        });
-        res.json(response.data.data.show.availableEpisodesDetail.sub);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+    const { id, type } = req.query;
+    if (type === 'manga') {
+        const chapters_list_gql = 'query ($mangaId: String!) { manga( _id: $mangaId ) { _id availableChaptersDetail }}';
+        try {
+            const response = await axios.get(`${ALLANIME_API}/api`, {
+                params: {
+                    variables: JSON.stringify({ mangaId: id }),
+                    query: chapters_list_gql
+                },
+                headers: { 'Referer': ALLANIME_REFR, 'User-Agent': AGENT }
+            });
+            res.json(response.data.data.manga.availableChaptersDetail.sub);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    } else {
+        const episodes_list_gql = 'query ($showId: String!) { show( _id: $showId ) { _id availableEpisodesDetail }}';
+        try {
+            const response = await axios.get(`${ALLANIME_API}/api`, {
+                params: {
+                    variables: JSON.stringify({ showId: id }),
+                    query: episodes_list_gql
+                },
+                headers: { 'Referer': ALLANIME_REFR, 'User-Agent': AGENT }
+            });
+            res.json(response.data.data.show.availableEpisodesDetail.sub);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
     }
 });
 
@@ -114,6 +144,34 @@ app.get('/api/links', async (req, res) => {
             }
         }
         res.json(allLinks);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/manga-pages', async (req, res) => {
+    const { id, chapter } = req.query;
+    const chapter_gql = 'query ($mangaId: String!, $translationType: VaildTranslationTypeMangaEnumType!, $chapterString: String!) { chapter( mangaId: $mangaId translationType: $translationType chapterString: $chapterString ) { chapterString server pictureUrls { url } }}';
+    
+    try {
+        const response = await axios.get(`${ALLANIME_API}/api`, {
+            params: {
+                variables: JSON.stringify({ mangaId: id, translationType: 'sub', chapterString: chapter }),
+                query: chapter_gql
+            },
+            headers: { 'Referer': ALLANIME_REFR, 'User-Agent': AGENT }
+        });
+        
+        const chapterData = response.data.data.chapter;
+        if (!chapterData) return res.status(404).json({ error: "Chapter not found" });
+        
+        const server = chapterData.server;
+        const pages = chapterData.pictureUrls.map(p => {
+            if (p.url.startsWith('http')) return p.url;
+            return `${server}${p.url}`;
+        });
+        
+        res.json(pages);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
