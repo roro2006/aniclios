@@ -224,22 +224,9 @@ async function playChapter(ch, btn) {
     btn.classList.add('active');
     saveToHistory(currentId, currentName, 'manga', currentThumbnail, ch);
     
-    mangaPages.innerHTML = '<p class="loading">Loading pages...</p>';
-    mangaView.scrollTop = 0;
-
-    try {
-        const resp = await fetch(`/api/manga-pages?id=${currentId}&chapter=${ch}`);
-        const pages = await resp.json();
-        
-        mangaPages.innerHTML = '';
-        pages.forEach(url => {
-            const img = document.createElement('img');
-            img.src = url;
-            img.style.width = '100%';
-            img.loading = 'lazy';
-            mangaPages.appendChild(img);
-        });
-    } catch (err) { mangaPages.innerText = `Error: ${err.message}`; }
+    // Redirect to the new nice reader UI
+    const url = `reader.html?id=${encodeURIComponent(currentId)}&ch=${encodeURIComponent(ch)}&title=${encodeURIComponent(currentName)}`;
+    window.location.href = url;
 }
 
 searchBtn.onclick = search;

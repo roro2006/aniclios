@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manga Reader</title>
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --overlay: rgba(0, 0, 0, 0.8);
+            --primary: #bb86fc;
+            --text: #e1e1e1;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .navbar {
+            position: fixed;
+            top: 0; left: 0; width: 100%;
+            background: var(--overlay);
+            backdrop-filter: blur(10px);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            box-sizing: border-box;
+        }
+
+        .nav-btn {
+            background: #333;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .nav-btn:hover { background: var(--primary); color: #000; }
+
+        .title-info {
+            text-align: center;
+            flex-grow: 1;
+        }
+
+        .title-info h1 { margin: 0; font-size: 1rem; color: var(--primary); }
+        .title-info span { font-size: 0.8rem; opacity: 0.7; }
+
+        .pages-container {
+            margin-top: 60px;
+            width: 100%;
+            max-width: 900px;
+            display: flex;
+            flex-direction: column;
+            gap: 0px;
+        }
+
+        .pages-container img {
+            width: 100%;
+            display: block;
+            background: #1a1a1a;
+            min-height: 400px;
+        }
+
+        .loading {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-style: italic;
+            color: var(--primary);
+        }
+
+        .end-nav {
+            padding: 40px;
+            display: flex;
+            gap: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <button class="nav-btn" onclick="window.close(); window.history.back();">Back</button>
+        <div class="title-info">
+            <h1 id="manga-title">Loading...</h1>
+            <span id="chapter-label">Chapter --</span>
+        </div>
+        <div id="top-nav-buttons"></div>
+    </div>
+
+    <div id="loading" class="loading">Fetching pages...</div>
+    <div id="pages" class="pages-container"></div>
+
+    <div class="end-nav" id="bottom-nav"></div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const mangaId = params.get('id');
+        const chapter = params.get('ch');
+        const mangaTitle = params.get('title');
+
+        document.getElementById('manga-title').innerText = mangaTitle || "Manga Reader";
+        document.getElementById('chapter-label').innerText = "Chapter " + chapter;
+
+        async function loadPages() {
+            try {
+                const resp = await fetch(`/api/manga-pages?id=${mangaId}&chapterNumber=${chapter}`);
+                const pages = await resp.json();
+                
+                document.getElementById('loading').style.display = 'none';
+                const container = document.getElementById('pages');
+                
+                pages.forEach(url => {
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.loading = "lazy";
+                    container.appendChild(img);
+                });
+
+                window.scrollTo(0, 0);
+            } catch (err) {
+                document.getElementById('loading').innerText = "Error: " + err.message;
+            }
+        }
+
+        loadPages();
+    </script>
+</body>
+</html>
