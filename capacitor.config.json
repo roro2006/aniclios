@@ -1,0 +1,11 @@
+{
+  "appId": "com.rores.anicli",
+  "appName": "AniCLI",
+  "webDir": "public",
+  "bundledWebRuntime": false,
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

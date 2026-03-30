@@ -1,0 +1,22 @@
+name: Build iOS IPA
+on: [push]
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install dependencies
+        run: npm install
+      - name: Capacitor Sync
+        run: |
+          npx cap add ios
+          npx cap sync
+      - name: Build with Xcode
+        run: |
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -sdk iphoneos -configuration Debug -archivePath $PWD/build/App.xcarchive archive
+          xcodebuild -exportArchive -archivePath $PWD/build/App.xcarchive -exportOptionsPlist ios/App/App/ExportOptions.plist -exportPath $PWD/build/ipa
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: AniCLI-IPA
+          path: build/ipa/*.ipa

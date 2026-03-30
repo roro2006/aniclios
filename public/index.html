@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AniCLI Web Mirror</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="https://via.placeholder.com/180x180.png?text=AniCLI">
+    <meta name="theme-color" content="#bb86fc">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        :root {
+            --bg: #121212;
+            --card-bg: #1e1e1e;
+            --primary: #bb86fc;
+            --text: #e1e1e1;
+            --text-dim: #a0a0a0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 { color: var(--primary); margin-bottom: 20px; }
+
+        .search-container {
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        input {
+            flex-grow: 1;
+            padding: 12px 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: #252525;
+            color: white;
+            outline: none;
+        }
+
+        input:focus { border-color: var(--primary); }
+
+        button {
+            padding: 10px 20px;
+            background-color: var(--primary);
+            color: #121212;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover { background-color: #9965f4; }
+
+        .results {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        .anime-card {
+            background-color: var(--card-bg);
+            padding: 15px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .anime-card:hover {
+            transform: translateY(-5px);
+            border: 1px solid var(--primary);
+        }
+
+        .watchlist-btn {
+            background: #444;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            margin-top: 5px;
+            align-self: flex-start;
+        }
+
+        .watchlist-btn.active {
+            background: var(--primary);
+            color: #121212;
+        }
+
+        .anime-card h3 { margin: 0; font-size: 1rem; }
+        .anime-card span { color: var(--text-dim); font-size: 0.8rem; }
+
+        .anime-card img {
+            width: 100%;
+            height: 250px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 5px;
+            background-color: #333;
+        }
+
+        .player-container {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        #video-player {
+            width: 90%;
+            max-width: 1000px;
+            background: black;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+
+        .episodes-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 20px;
+            max-height: 150px;
+            overflow-y: auto;
+            width: 90%;
+            max-width: 1000px;
+        }
+
+        .ep-btn {
+            background: #333;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: none;
+        }
+
+        .ep-btn:hover, .ep-btn.active { background: var(--primary); color: #121212; }
+
+        .close-btn {
+            position: absolute;
+            top: 20px; right: 20px;
+            font-size: 2rem;
+            color: white;
+            cursor: pointer;
+        }
+
+        .loading {
+            color: var(--primary);
+            font-style: italic;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>AniCLI Web</h1>
+
+    <div class="search-container">
+        <input type="text" id="search-input" placeholder="Search anime...">
+        <button id="search-btn">Search</button>
+    </div>
+
+    <div id="history-container" style="width: 100%; max-width: 1000px; margin-bottom: 40px; display: none;">
+        <h2 style="color: var(--primary); border-bottom: 1px solid #333; padding-bottom: 10px;">Continue Watching</h2>
+        <div id="history-list" class="results"></div>
+    </div>
+
+    <div id="watchlist-container" style="width: 100%; max-width: 1000px; margin-bottom: 40px; display: none;">
+        <h2 style="color: var(--primary); border-bottom: 1px solid #333; padding-bottom: 10px;">Watchlist</h2>
+        <div id="watchlist-list" class="results"></div>
+    </div>
+
+    <div id="loading" class="loading" style="display: none;">Searching...</div>
+    <div id="results" class="results"></div>
+
+    <div id="player-overlay" class="player-container">
+        <span class="close-btn" id="close-player">&times;</span>
+        <h2 id="player-title"></h2>
+        <video id="video-player" controls></video>
+        <div id="episodes-container" class="episodes-list"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

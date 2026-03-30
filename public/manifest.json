@@ -1,0 +1,23 @@
+{
+  "name": "AniCLI Web Mirror",
+  "short_name": "AniCLI",
+  "description": "A web-based mirror for ani-cli anime streaming.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#bb86fc",
+  "icons": [
+    {
+      "src": "https://via.placeholder.com/192x192.png?text=AniCLI",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://via.placeholder.com/512x512.png?text=AniCLI+Web",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
