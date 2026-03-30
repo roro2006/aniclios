@@ -1,6 +1,3 @@
-// Note: This version is designed for Capacitor Native Apps
-// It uses @capacitor/core and @capacitor-community/http to bypass CORS
-
 const searchInput = document.getElementById('search-input');
 const searchBtn = document.getElementById('search-btn');
 const resultsDiv = document.getElementById('results');
@@ -20,46 +17,82 @@ let currentAnimeName = '';
 let currentThumbnail = '';
 let hls = null;
 
-// --- NATIVE SCRAPING LOGIC (Internalized from server.js) ---
-const ALLANIME_BASE = 'allanime.day';
-const ALLANIME_API = `https://api.${ALLANIME_BASE}`;
-const ALLANIME_REFR = 'https://allmanga.to';
-const AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0';
-
-const DECODE_MAP = {
-    '79': 'A', '7a': 'B', '7b': 'C', '7c': 'D', '7d': 'E', '7e': 'F', '7f': 'G', '70': 'H', '71': 'I', '72': 'J', '73': 'K', '74': 'L', '75': 'M', '76': 'N', '77': 'O', '68': 'P', '69': 'Q', '6a': 'R', '6b': 'S', '6c': 'T', '6d': 'U', '6e': 'V', '6f': 'W', '60': 'X', '61': 'Y', '62': 'Z',
-    '59': 'a', '5a': 'b', '5b': 'c', '5c': 'd', '5d': 'e', '5e': 'f', '5f': 'g', '50': 'h', '51': 'i', '52': 'j', '53': 'k', '54': 'l', '55': 'm', '56': 'n', '57': 'o', '48': 'p', '49': 'q', '4a': 'r', '4b': 's', '4c': 't', '4d': 'u', '4e': 'v', '4f': 'w', '40': 'x', '41': 'y', '42': 'z',
-    '08': '0', '09': '1', '0a': '2', '0b': '3', '0c': '4', '0d': '5', '0e': '6', '0f': '7', '00': '8', '01': '9',
-    '15': '-', '16': '.', '67': '_', '46': '~', '02': ':', '17': '/', '07': '?', '1b': '#', '63': '[', '65': ']', '78': '@', '19': '!', '1c': '$', '1e': '&', '10': '(', '11': ')', '12': '*', '13': '+', '14': ',', '03': ';', '05': '=', '1d': '%'
-};
-
-function decodeProviderId(hex) {
-    let result = '';
-    for (let i = 0; i < hex.length; i += 2) {
-        const h = hex.substring(i, i + 2);
-        result += DECODE_MAP[h] || '';
+// Load History
+function loadHistory() {
+    const history = JSON.parse(localStorage.getItem('anicli-history') || '[]');
+    if (history.length === 0) {
+        historyContainer.style.display = 'none';
+        return;
     }
-    return result.replace('/clock', '/clock.json');
+    historyContainer.style.display = 'block';
+    historyList.innerHTML = '';
+    history.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'anime-card';
+        card.innerHTML = `
+            <img src="${item.thumbnail}" alt="${item.name}">
+            <h3>${item.name}</h3>
+            <span>Last Watched: Ep ${item.lastEp}</span>
+        `;
+        card.onclick = () => showPlayer(item.id, item.name, item.lastEp);
+        historyList.appendChild(card);
+    });
 }
 
-// Wrapper for Native HTTP Calls
-async function nativeGet(url, params = {}) {
-    // If running in Capacitor, use the native plugin
-    if (window.Capacitor && window.Capacitor.Plugins.CapacitorHttp) {
-        const { CapacitorHttp } = window.Capacitor.Plugins;
-        const options = {
-            url,
-            params,
-            headers: { 'Referer': ALLANIME_REFR, 'User-Agent': AGENT }
-        };
-        const response = await CapacitorHttp.get(options);
-        return response.data;
+function saveToHistory(id, name, thumbnail, lastEp) {
+    let history = JSON.parse(localStorage.getItem('anicli-history') || '[]');
+    // Remove existing entry
+    history = history.filter(item => item.id !== id);
+    // Add to front
+    history.unshift({ id, name, thumbnail, lastEp });
+    // Keep last 10
+    history = history.slice(0, 10);
+    localStorage.setItem('anicli-history', JSON.stringify(history));
+    loadHistory();
+}
+
+// Watchlist Logic
+function loadWatchlist() {
+    const watchlist = JSON.parse(localStorage.getItem('anicli-watchlist') || '[]');
+    if (watchlist.length === 0) {
+        watchlistContainer.style.display = 'none';
+        return;
+    }
+    watchlistContainer.style.display = 'block';
+    watchlistList.innerHTML = '';
+    watchlist.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'anime-card';
+        card.innerHTML = `
+            <img src="${item.thumbnail}" alt="${item.name}">
+            <h3>${item.name}</h3>
+            <span>Added to Watchlist</span>
+            <button class="watchlist-btn active" onclick="event.stopPropagation(); toggleWatchlist('${item.id}', '${item.name}', '${item.thumbnail}')">Remove</button>
+        `;
+        card.onclick = () => showPlayer(item.id, item.name, null, item.thumbnail);
+        watchlistList.appendChild(card);
+    });
+}
+
+function toggleWatchlist(id, name, thumbnail) {
+    let watchlist = JSON.parse(localStorage.getItem('anicli-watchlist') || '[]');
+    const exists = watchlist.some(item => item.id === id);
+    
+    if (exists) {
+        watchlist = watchlist.filter(item => item.id !== id);
     } else {
-        throw new Error("Native HTTP not available. Build as App first!");
+        watchlist.unshift({ id, name, thumbnail });
+    }
+    
+    localStorage.setItem('anicli-watchlist', JSON.stringify(watchlist));
+    loadWatchlist();
+    // Update button in search if visible
+    const searchBtn = document.querySelector(`.watchlist-btn[data-id="${id}"]`);
+    if (searchBtn) {
+        searchBtn.innerText = exists ? 'Add to Watchlist' : 'In Watchlist';
+        searchBtn.classList.toggle('active', !exists);
     }
 }
-
-// --- APP LOGIC ---
 
 async function searchAnime() {
     const query = searchInput.value.trim();
@@ -69,18 +102,16 @@ async function searchAnime() {
     resultsDiv.innerHTML = '';
 
     try {
-        const search_gql = 'query( $search: SearchInput $limit: Int $page: Int $translationType: VaildTranslationTypeEnumType $countryOrigin: VaildCountryOriginEnumType ) { shows( search: $search limit: $limit page: $page translationType: $translationType countryOrigin: $countryOrigin ) { edges { _id name thumbnail availableEpisodes __typename } }}';
-        const data = await nativeGet(`${ALLANIME_API}/api`, {
-            variables: JSON.stringify({
-                search: { allowAdult: false, allowUnknown: false, query },
-                limit: 40, page: 1, translationType: 'sub', countryOrigin: 'ALL'
-            }),
-            query: search_gql
-        });
+        const resp = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
+        const results = await resp.json();
         
-        const results = data.data.shows.edges;
         loadingDiv.style.display = 'none';
         
+        if (results.length === 0) {
+            resultsDiv.innerHTML = '<p>No results found.</p>';
+            return;
+        }
+
         const watchlist = JSON.parse(localStorage.getItem('anicli-watchlist') || '[]');
         results.forEach(anime => {
             const card = document.createElement('div');
@@ -91,7 +122,7 @@ async function searchAnime() {
                 <img src="${thumbnail}" alt="${anime.name}" onerror="this.src='https://via.placeholder.com/200x250?text=No+Cover'">
                 <h3>${anime.name}</h3>
                 <span>Episodes: ${anime.availableEpisodes.sub || 0}</span>
-                <button class="watchlist-btn ${inWatchlist ? 'active' : ''}" data-id="${anime._id}" onclick="event.stopPropagation(); toggleWatchlist('${anime._id}', '${anime.name.replace(/'/g, "'")}', '${thumbnail}')">
+                <button class="watchlist-btn ${inWatchlist ? 'active' : ''}" data-id="${anime._id}" onclick="event.stopPropagation(); toggleWatchlist('${anime._id}', '${anime.name.replace(/'/g, "\\'")}', '${thumbnail}')">
                     ${inWatchlist ? 'In Watchlist' : 'Add to Watchlist'}
                 </button>
             `;
@@ -107,6 +138,12 @@ async function showPlayer(id, name, lastEp = null, thumbnail = null) {
     currentAnimeId = id;
     currentAnimeName = name;
     if (thumbnail) currentThumbnail = thumbnail;
+    else {
+        const history = JSON.parse(localStorage.getItem('anicli-history') || '[]');
+        const histItem = history.find(item => item.id === id);
+        if (histItem) currentThumbnail = histItem.thumbnail;
+    }
+    
     playerTitle.innerText = name;
     playerOverlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
@@ -114,12 +151,8 @@ async function showPlayer(id, name, lastEp = null, thumbnail = null) {
     episodesContainer.innerHTML = '<p class="loading">Loading episodes...</p>';
     
     try {
-        const episodes_list_gql = 'query ($showId: String!) { show( _id: $showId ) { _id availableEpisodesDetail }}';
-        const data = await nativeGet(`${ALLANIME_API}/api`, {
-            variables: JSON.stringify({ showId: id }),
-            query: episodes_list_gql
-        });
-        const episodes = data.data.show.availableEpisodesDetail.sub;
+        const resp = await fetch(`/api/episodes?id=${id}`);
+        const episodes = await resp.json();
         
         episodesContainer.innerHTML = '';
         episodes.sort((a,b) => parseFloat(a) - parseFloat(b)).forEach(ep => {
@@ -146,57 +179,56 @@ async function playEpisode(ep, btn) {
     saveToHistory(currentAnimeId, currentAnimeName, currentThumbnail, ep);
     
     try {
-        const episode_embed_gql = 'query ($showId: String!, $translationType: VaildTranslationTypeEnumType!, $episodeString: String!) { episode( showId: $showId translationType: $translationType episodeString: $episodeString ) { episodeString sourceUrls }}';
-        const gql_resp = await nativeGet(`${ALLANIME_API}/api`, {
-            variables: JSON.stringify({ showId: currentAnimeId, translationType: 'sub', episodeString: ep }),
-            query: episode_embed_gql
-        });
-
-        const sourceUrls = gql_resp.data.episode.sourceUrls;
-        const allLinks = [];
-
-        for (const source of sourceUrls) {
-            if (!source.sourceUrl.startsWith('--')) continue;
-            const provider_id = decodeProviderId(source.sourceUrl.substring(2));
-            const resp = await nativeGet(`https://${ALLANIME_BASE}${provider_id}`);
-            if (resp.links) {
-                resp.links.forEach(l => {
-                    allLinks.push({ quality: l.resolutionStr, url: l.link, isHLS: l.hls || l.link.includes('.m3u8') });
-                });
-            }
-        }
+        const resp = await fetch(`/api/links?id=${currentAnimeId}&ep=${ep}`);
+        const links = await resp.json();
         
-        if (allLinks.length === 0) throw new Error("No links found");
+        if (links.length === 0) {
+            alert('No links found for this episode.');
+            return;
+        }
 
-        const bestLink = allLinks.find(l => l.quality === '1080p') || allLinks[0];
+        const bestLink = links.find(l => l.quality === '1080p') || links[0];
         const streamUrl = bestLink.url;
 
-        if (hls) hls.destroy();
+        if (hls) {
+            hls.destroy();
+            hls = null;
+        }
+
         if (bestLink.isHLS && Hls.isSupported()) {
             hls = new Hls();
             hls.loadSource(streamUrl);
             hls.attachMedia(videoPlayer);
-            hls.on(Hls.Events.MANIFEST_PARSED, () => videoPlayer.play());
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                videoPlayer.play();
+            });
         } else {
             videoPlayer.src = streamUrl;
             videoPlayer.play();
         }
     } catch (err) {
-        alert(`Failed to play: ${err.message}`);
+        alert(`Failed to play episode: ${err.message}`);
     }
 }
 
-// (Remaining helper functions like saveToHistory, loadHistory, etc. stay the same...)
-// (Add them back here or keep them in the file)
-
 searchBtn.onclick = searchAnime;
 searchInput.onkeypress = (e) => { if (e.key === 'Enter') searchAnime(); };
+
 closePlayer.onclick = () => {
     playerOverlay.style.display = 'none';
     document.body.style.overflow = 'auto';
     videoPlayer.pause();
-    if (hls) { hls.destroy(); hls = null; }
+    if (hls) {
+        hls.destroy();
+        hls = null;
+    }
 };
 
 loadHistory();
 loadWatchlist();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js');
+  });
+}
