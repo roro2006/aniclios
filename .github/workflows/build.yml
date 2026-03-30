@@ -4,7 +4,7 @@ jobs:
   build:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Install dependencies
         run: npm install
       - name: Capacitor Sync
@@ -16,7 +16,7 @@ jobs:
           xcodebuild -workspace ios/App/App.xcworkspace -scheme App -sdk iphoneos -configuration Debug -archivePath $PWD/build/App.xcarchive archive
           xcodebuild -exportArchive -archivePath $PWD/build/App.xcarchive -exportOptionsPlist ios/App/App/ExportOptions.plist -exportPath $PWD/build/ipa
       - name: Upload Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: AniCLI-IPA
           path: build/ipa/*.ipa
